@@ -16,15 +16,16 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 
 import torch.distributed as dist
 import torch_optimizer
-
+import torchmetrics
 import sklearn.metrics as skm
 import tqdm
 import timm
+
 from torch.optim.swa_utils import AveragedModel,SWALR
 import torch
 import numpy as np
 import pandas as pd
-from PytorchTemplate.Metrics import metrics
+from PytorchTemplate.Metrics import Metrics
 
 
 class Experiment:
@@ -216,12 +217,20 @@ class Experiment:
         """
 
         # -----------model initialisation------------------------------
+        if model_name in timm.list_models() :
+            model = timm.create_model(model_name, num_classes=self.num_classes, pretrained=True,
+                                      drop_rate=self.config["drop_rate"]).to(self.device)
+            name = model.default_cfg["architecture"]
+            model = AveragedModel(model)
+            setattr(model, "name", name)
+        else :
+            try :
+                from diffusers import DiffusionPipeline
 
-        model = timm.create_model(model_name, num_classes=self.num_classes, pretrained=True,
-                                  drop_rate=self.config["drop_rate"]).to(self.device)
-        name = model.default_cfg["architecture"]
-        model = AveragedModel(model)
-        setattr(model, "name", name)
+                model = DiffusionPipeline.from_pretrained(model_name)
+            except :
+                raise ValueError(f"The model {model_name} is not implemented yet")
+
         self.model = model
 
 
@@ -247,7 +256,7 @@ class Experiment:
         #     self.metrics = None
         #     logging.info("No metrics have been specified. Only the loss will be computed")
 
-        self.metrics = metrics
+        self.metrics = Metrics()#broken
 
 
 
@@ -256,7 +265,7 @@ class Experiment:
 
 
         elif optimizer in dir(torch_optimizer) :
-            optimizer = getattr(torch.optim, optimizer)
+            optimizer = getattr(torch_optimizer, optimizer)
 
         else :
             raise NotImplementedError("The optimizer is not implemented yet")
@@ -270,11 +279,13 @@ class Experiment:
             **optimizer_params
         )
         logging.debug(f"Optimizer : {self.optimizer}")
-
+        print(criterion)
         if criterion in dir(torch.nn):
             self.criterion = getattr(torch.nn, criterion)()
+        elif criterion in dir(torchmetrics) :
+            self.criterion = getattr(torchmetrics, criterion)()
         else :
-            raise NotImplementedError("The criterion is not implemented yet")
+            raise NotImplementedError(f"The criterion {criterion} is not implemented yet")
 
 
         self.scheduler = torch.optim.lr_scheduler.OneCycleLR(self.optimizer, max_lr=self.config["lr"], steps_per_epoch=len(self.train_loader), epochs=self.epoch_max)
@@ -386,8 +397,7 @@ class Experiment:
 
             # Apply advanced transformation requiring multiple inputs
 
-            images, labels = self.train_loader.dataset.advanced_transform((images, labels))
-            images = self.train_loader.dataset.normalize(images)
+
 
 
 
@@ -464,7 +474,7 @@ class Experiment:
             )
 
 
-            images      = self.val_loader.dataset.normalize(images)
+
 
             # forward + backward + optimize
             with torch.cuda.amp.autocast(enabled=self.autocast):

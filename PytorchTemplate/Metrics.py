@@ -1,159 +1,101 @@
 import numpy as np
-
+import os
 import timm.utils.metrics
 
 from sklearn.metrics import f1_score,recall_score,precision_score,roc_auc_score
+import inspect
 
-
-from PytorchTemplate import names
-
+import tqdm
+import torch
+import json
 class Metrics:
-    def __init__(self):
-        self.num_classes = len(names)
-        self.thresholds = [0.5,]*self.num_classes
-        self.names = names
+    def __init__(self,train_loader,debug=False):
 
-    # def convert(self,pred):
-    #
-    #     for i in range(self.num_classes) :
-    #         pred[:,i] = np.where(
-    #             pred[:,i]<=self.thresholds[i],
-    #             pred[:,i]/2/self.thresholds[i],               #if true
-    #             1 - (1-pred[:,i])/2/(1-self.thresholds[i])    #if false
-    #         )
-    #     return pred
+        inception = timm.create_model("inception_v4",pretrained=True).eval()
+        if torch.__version__>"2.0" :
+            inception = torch.compile(inception)
+        self.inception = inception
+        #self.inception.load_state_dict(torch.load("inception_v4.pt"))
 
+        if os.path.exists(f"inception_stats_{train_loader.dataset.__class__.__name__}.json") :
+            with open(f"inception_stats_{train_loader.dataset.__class__.__name__}.json") as f :
+                self.features_map = json.load(f)
+        else :
+            self.inception = self.inception.to("cuda:0")
+            self.features_map = {str(i) : [] for i in range(0,10)}
+            with torch.no_grad() :
+                for ex,(images,labels) in enumerate(tqdm.tqdm(train_loader)) :
+                    images = images.to("cuda:0")
+                    features = self.inception.forward_features(images)
 
-        self.convert = lambda x : x #if you wish to use default threshold
+                    features = features.detach().cpu()
+                    for feature,label in zip(features,labels) :
+                        self.features_map[str(label.item())].append(feature)
+                    if debug and ex == 100:
+                        break
 
-
-
-    def accuracy3(self, true, pred):
-        # n, m = true.shape
-        # pred2 = self.convert(pred)
-        # pred2 = np.where(pred2 > 0.5, 1, 0)
-        #
-        # accuracy = 0
-        # for x, y in zip(true, pred2):
-        #     if (x == y).all():
-        #         accuracy += 1
-        # accuracy /=n
-        accuracy = timm.utils.metrics.accuracy(pred,true, topk=(3,))
-        return accuracy
-    def accuracy(self, true, pred):
-
-        true = np.argmax(true,axis=1)
-        pred = np.argmax(pred,axis=1)
-        accuracy = np.sum(true==pred)/len(true)
-
-        return accuracy
-
-    def f1(self, true, pred):
-
-        pred2 = self.convert(pred)
-
-        pred2 = np.where(pred2 > 0.5, 1, 0)
+                for key,value in self.features_map.items() :
+                    value = torch.stack(value)
+                    self.features_map[key] = (torch.mean(value,dim=[0,1]).tolist(),torch.std(value,dim=[0,1]).tolist()) #TODO : std or cov???
 
 
-        return f1_score(
-            true, pred2, zero_division=0,average="macro"
-        )  # weighted??
+            json_object = json.dumps(self.features_map)
+            with open(f"inception_stats_{train_loader.dataset.__class__.__name__}.json", "w") as outfile:
+                outfile.write(json_object)
 
-    def precision(self, true, pred):
-        pred = self.convert(pred)
-        pred = np.where(pred > 0.5, 1, 0)
-        results = precision_score(true, pred, average=None, zero_division=0)
-
-        results_dict = {}
-        for item, name in zip(results, self.names):
-            results_dict[name] = item
-        return results_dict
-
-    def recall(self, true, pred):
-
-        pred = self.convert(pred)
-        pred = np.where(pred > 0.5, 1, 0)
-        results=recall_score(true, pred, average=None, zero_division=0)
-        results_dict={}
-        for item,name in zip(results,self.names) :
-            results_dict[name] = item
-        return results_dict
-
-    def computeAUROC_weighted(self, true, pred):
-        fpr = dict()
-        tpr = dict()
-        outAUROC = dict()
-        classCount = pred.shape[1]
-        for i in range(classCount):
-
-            # fpr[i], tpr[i], thresholds = roc_curve(true[:, i], pred[:, i],pos_label=1)
-            #
-            # threshold = thresholds[np.argmax(tpr[i] - fpr[i])]
-            # logging.info(f"threshold {self.names[i]} : ",threshold)
-            # self.thresholds[i] =threshold
-            # try :
-            #     auroc =  auc(fpr[i], tpr[i])
-            # except :
-            #     auroc=0
-            try :
-                auroc = roc_auc_score(true[:, i], pred[:, i],average="weighted")
-            except ValueError:
-                auroc = 0
-            outAUROC[self.names[i]] = auroc
-            if np.isnan(outAUROC[self.names[i]]):
-                outAUROC[self.names[i]] = 0
-
-        outAUROC["mean"] = np.mean(list(outAUROC.values()))
+            self.inception = self.inception.cpu()
+    @torch.no_grad()
+    def FID(self, image, cond):
 
 
-        return outAUROC
+        self.inception = self.inception.to("cuda:0")
+        features = self.inception.forward_features(image)
+        print(features.shape)
+        fids = []
+        for feature,c in zip(features,cond) :
+            mu2, sigma2 = self.features_map[str(int(c.item()))]
 
-    def computeAUROC(self, true, pred):
-        fpr = dict()
-        tpr = dict()
-        outAUROC = dict()
-        classCount = pred.shape[1]
-        for i in range(classCount):
+            mu2 = torch.tensor(mu2).to("cuda:0")
+            sigma2 = torch.tensor(sigma2).to("cuda:0")
+            mu1 = torch.mean(feature,dim=[0,])
+            sigma1 = torch.std(feature,dim=[0,])
 
-            # fpr[i], tpr[i], thresholds = roc_curve(true[:, i], pred[:, i],pos_label=1)
-            #
-            # threshold = thresholds[np.argmax(tpr[i] - fpr[i])]
-            # logging.info(f"threshold {self.names[i]} : ",threshold)
-            # self.thresholds[i] =threshold
-            # try :
-            #     auroc =  auc(fpr[i], tpr[i])
-            # except :
-            #     auroc=0
-            try :
-                auroc = roc_auc_score(true[:, i], pred[:, i],average="weighted")
-            except ValueError:
-                auroc = 0
-            outAUROC[self.names[i]] = auroc
-            if np.isnan(outAUROC[self.names[i]]):
-                outAUROC[self.names[i]] = 0
+            covmean = torch.cov(sigma1.T @ sigma2)**.5
+            print(mu1.shape, mu2.shape, sigma1.shape, sigma2.shape, covmean.shape)
+            fid = (torch.mean((mu1 - mu2) ** 2 + (sigma1 - sigma2) ** 2) + torch.trace(
+                sigma1 + sigma2 - 2.0 * covmean)).cpu().item()
+            fids.append(fid)
 
-        outAUROC["mean"] = np.mean(list(outAUROC.values()))
+        self.inception = self.inception.cpu()
+        return np.mean(fids)
 
-
-        return outAUROC
 
     def metrics(self):
         dict = {
-            "accuracy": self.accuracy,
+            "FID": self.FID,
+
 
         }
         return dict
 
 
-metrics = Metrics().metrics()
+
 
 if __name__=="__main__" :
-    from PytorchTemplate import names
-    num_classes=len(names)
-    metric = Metrics()
-    metrics = metric.metrics()
-    print(metrics)
-    label=np.random.randint(0,2,(10,num_classes))
-    pred =np.random.random(size=(10,num_classes))
-    for key,metric in metrics.items() :
-        metric(label,pred)
+    from torchvision import datasets,transforms
+    train_dataset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Resize(299),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+
+    ]))
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=8)
+
+    metrics = Metrics(train_loader=train_loader,debug=True).metrics()
+    for i in np.random.randint(0,1000,10) :
+        image,label = train_dataset[i]
+        label = np.array([label])
+        image = image.reshape(1,3,299,299).to("cuda:0")
+        fid = metrics["FID"](image,label)
+        print("FID : ",fid)
+        print("Out of Distribution FID : ",metrics["FID"](image,label-1))

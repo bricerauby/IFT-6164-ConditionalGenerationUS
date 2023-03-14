@@ -3,7 +3,7 @@ import os
 
 import warnings
 
-import timm
+
 import torch
 import torch.distributed as dist
 import logging
@@ -14,7 +14,7 @@ from torch.optim.swa_utils import AveragedModel
 
 # -----local imports---------------------------------------
 from PytorchTemplate.Parser import init_parser
-from PytorchTemplate.Experiment import Experiment as Experiment
+from PytorchTemplate.variation.GanExperiment import GanExperiment as Experiment
 from PytorchTemplate import names
 from PytorchTemplate.Dataset import Dataset
 
@@ -59,19 +59,21 @@ def main() :
     shuffle = True
     num_workers = config["num_worker"]
     pin_memory = True
-    from PytorchTemplate.Dataset import CIFAR10Im2Im
-    self.train_dataset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transforms.Compose([
+    from torchvision import transforms,datasets
+    train_dataset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transforms.Compose([
 
-        transforms.resize(64),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        #transforms.Resize(299),
         transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+
     ]))
 
-    self.train_dataset = datasets.CIFAR10(root='./data', train=False, download=True, transform=transforms.Compose([
+    val_dataset = datasets.CIFAR10(root='./data', train=False, download=True, transform=transforms.Compose([
 
-        transforms.resize(64),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        #transforms.Resize(299),
         transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+
     ]))
 
     train_loader = torch.utils.data.DataLoader(
@@ -101,14 +103,22 @@ def main() :
 
     # setting up for the  experiment
 
+   
+    from PytorchTemplate.models.StyleGAN import Generator, Discriminator
+    generator = Generator(z_dim=32, c_dim=1, w_dim=256, img_resolution=32, img_channels=3)
+    discriminator = Discriminator(c_dim=1, img_resolution=32, img_channels=3)
+
+    if torch.__version__>"2.0" :
+        generator = torch.compile(generator)
+        discriminator = torch.compile(discriminator)
     experiment = Experiment(names, config)
     experiment.compile(
-        model_name=config["model"],
-        optimizer = "AdamW",
+        generator=generator,
+        discriminator=discriminator,
+        optimizer="AdamW",
         criterion="Dice",
         train_loader=train_loader,
         val_loader=val_loader,
-        final_activation="softmax",
     )
 
 
