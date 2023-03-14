@@ -62,7 +62,7 @@ def main() :
     from torchvision import transforms,datasets
     train_dataset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transforms.Compose([
 
-        #transforms.Resize(299),
+        transforms.Resize(256),
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
 
@@ -70,7 +70,7 @@ def main() :
 
     val_dataset = datasets.CIFAR10(root='./data', train=False, download=True, transform=transforms.Compose([
 
-        #transforms.Resize(299),
+        transforms.Resize(256),
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
 
@@ -105,8 +105,8 @@ def main() :
 
    
     from PytorchTemplate.models.StyleGAN import Generator, Discriminator
-    generator = Generator(z_dim=32, c_dim=1, w_dim=256, img_resolution=32, img_channels=3)
-    discriminator = Discriminator(c_dim=1, img_resolution=32, img_channels=3)
+    generator = Generator(z_dim=32, c_dim=1, w_dim=256, img_resolution=256, img_channels=3)
+    discriminator = Discriminator(c_dim=1, img_resolution=256, img_channels=3)
 
     if torch.__version__>"2.0" :
         generator = torch.compile(generator)
