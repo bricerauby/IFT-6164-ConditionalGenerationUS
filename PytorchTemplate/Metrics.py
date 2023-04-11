@@ -12,10 +12,10 @@ class Metrics:
     def __init__(self,train_loader,debug=False):
 
         inception = timm.create_model("inception_v4",pretrained=True).eval()
-        if torch.__version__>"2.0" :
+        if torch.__version__>"2.0" and not debug and False :
             inception = torch.compile(inception)
         self.inception = inception
-        #self.inception.load_state_dict(torch.load("inception_v4.pt"))
+        #self.inception.load_state_dict(torch.load("inception_v4.pt")) #TODO : load the pretrained model trained on the conditionnal data
 
         if os.path.exists(f"inception_stats_{train_loader.dataset.__class__.__name__}.json") :
             with open(f"inception_stats_{train_loader.dataset.__class__.__name__}.json") as f :
@@ -50,9 +50,10 @@ class Metrics:
 
         self.inception = self.inception.to("cuda:0")
         features = self.inception.forward_features(image)
-        print(features.shape)
+
         fids = []
         for feature,c in zip(features,cond) :
+
             mu2, sigma2 = self.features_map[str(int(c.item()))]
 
             mu2 = torch.tensor(mu2).to("cuda:0")
@@ -70,12 +71,12 @@ class Metrics:
         return np.mean(fids)
 
 
-    def metrics(self):
+    def metrics(self) :
+
         dict = {
             "FID": self.FID,
-
-
         }
+
         return dict
 
 
@@ -92,10 +93,11 @@ if __name__=="__main__" :
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=8)
 
     metrics = Metrics(train_loader=train_loader,debug=True).metrics()
-    for i in np.random.randint(0,1000,10) :
+    for i in np.random.randint(0,1000,100) :
         image,label = train_dataset[i]
         label = np.array([label])
         image = image.reshape(1,3,299,299).to("cuda:0")
+
         fid = metrics["FID"](image,label)
         print("FID : ",fid)
-        print("Out of Distribution FID : ",metrics["FID"](image,label-1))
+        print("Out of Distribution FID : ",metrics["FID"](image,(label+1)%10))

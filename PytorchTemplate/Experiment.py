@@ -17,7 +17,6 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 import torch.distributed as dist
 import torch_optimizer
 import torchmetrics
-import sklearn.metrics as skm
 import tqdm
 import timm
 
@@ -77,7 +76,7 @@ class Experiment:
 
 
         #  ---------- initialize the logger  ---------------------------------
-        logging.basicConfig(filename='PytorchTemplate/PytorchTemplate.log', level=logging.DEBUG)
+        logging.basicConfig(filename='PytorchTemplate/PytorchTemplate.log', level=10)
         root = logging.getLogger()
         root.setLevel(verbose)
         handler = logging.StreamHandler(sys.stdout)
@@ -107,11 +106,11 @@ class Experiment:
 
         # --------- instantiate experiment tracker -----------------------
         if config["wandb"]:
-            project = ""
-            entity = ""
-            if project == "" or entity == "":
+            project = "ift6164"
+
+            if project == "":
                 raise ValueError("Please specify a project name and entity name for wandb")
-            run = wandb.init(project=project, entity=entity, config=config)
+            run = wandb.init(project=project, config=config)
         else:
             run = None
 

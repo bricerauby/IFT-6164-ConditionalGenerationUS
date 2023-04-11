@@ -15,15 +15,15 @@ def init_parser():
         help="Choice of the model",
     )
 
-    # parser.add_argument(
-    #     "--img_size",
-    #     default=500,
-    #     const="all",
-    #     type=int,
-    #     nargs="?",
-    #     required=False,
-    #     help="width and length to resize the images to. Choose a value between 320 and 608.",
-    # )
+    parser.add_argument(
+        "--image_size",
+        default=500,
+        const="all",
+        type=int,
+        nargs="?",
+        required=False,
+        help="width and length to resize the images to. Choose a value between 320 and 608.",
+    )
 
     parser.add_argument(
         "--device",

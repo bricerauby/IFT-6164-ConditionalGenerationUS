@@ -330,12 +330,11 @@ class GanExperiment(Experiment):
             # forward + backward + optimize
             with torch.cuda.amp.autocast(enabled=self.autocast):
 
-
-                images = self.generator(noise.float(),c=label.float())
+                images = self.generator(noise,c=label)
 
 
             for key,metric in self.metrics.items() :
-                results[key] += metric(images, label)
+                results[key] += metric(images.float(), label.float())
 
 
 
