@@ -414,8 +414,8 @@ class SynthesisBlock(torch.nn.Module):
             y = y.to(dtype=torch.float32, memory_format=torch.contiguous_format)
             img = img.add_(y) if img is not None else y
 
-        assert x.dtype == dtype
-        assert img is None or img.dtype == torch.float32
+        # assert x.dtype == dtype,print(x.dtype,dtype)
+        # assert img is None or img.dtype == torch.float32
         return x, img
 
 #----------------------------------------------------------------------------

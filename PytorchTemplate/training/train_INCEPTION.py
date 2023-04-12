@@ -3,7 +3,7 @@ import os
 
 import warnings
 
-
+import timm
 import torch
 import torch.distributed as dist
 import logging
@@ -14,8 +14,8 @@ from torch.optim.swa_utils import AveragedModel
 
 # -----local imports---------------------------------------
 from PytorchTemplate.Parser import init_parser
-from PytorchTemplate.variation.GanExperiment import GanExperiment as Experiment
-from PytorchTemplate import names
+from PytorchTemplate.Experiment import Experiment as Experiment
+
 
 
 
@@ -34,6 +34,8 @@ def main() :
     parser = init_parser()
     args = parser.parse_args()
     config = vars(args)
+    config["model"] = "inception_v3"
+    config["image_size"] = 256
     # -------- proxy config ----------------------------------------
     #
     # proxy = urllib.request.ProxyHandler(
@@ -59,11 +61,12 @@ def main() :
     shuffle = True
     num_workers = config["num_worker"]
     pin_memory = True
-    from torchvision import transforms,datasets
+    from torchvision import datasets,transforms
     train_dataset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transforms.Compose([
 
-        # you can add here data augmentation with prob in config["augment_prob"]
         transforms.Resize(config["image_size"]),
+        # transforms.RandomHorizontalFlip(),
+        # Other transformations ...
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
 
@@ -76,21 +79,18 @@ def main() :
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
 
     ]))
-    #pytorch random sampler
-    num_samples  = 200 if config["debug"] else len(train_dataset)
-
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=batch_size,
-        sampler=torch.utils.data.RandomSampler(train_dataset, replacement=True, num_samples=num_samples , generator=None),
+        shuffle=shuffle,
         num_workers=num_workers,
         pin_memory=pin_memory,
     )
     val_loader = torch.utils.data.DataLoader(
         val_dataset,
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=shuffle,
         num_workers=num_workers,
         pin_memory=pin_memory,
     )
@@ -106,23 +106,15 @@ def main() :
 
 
     # setting up for the  experiment
-
-   
-    from PytorchTemplate.models.StyleGAN import Generator, Discriminator
-    generator = Generator(z_dim=32, c_dim=1, w_dim=128, img_resolution=config["image_size"], img_channels=3)
-    discriminator = Discriminator(c_dim=1, img_resolution=config["image_size"], img_channels=3)
-
-    if torch.__version__>"2.0" and not config["debug"] and False :
-        generator = torch.compile(generator)
-        discriminator = torch.compile(discriminator)
+    names = ["airplane","automobile","bird","cat","deer","dog","frog","horse","ship","truck"]#replace with bubble and no bubble
     experiment = Experiment(names, config)
     experiment.compile(
-        generator=generator,
-        discriminator=discriminator,
-        optimizer="AdamW",
-        criterion="Dice",
+        model_name=config["model"],
+        optimizer = "AdamW",
+        criterion="CrossEntropyLoss",
         train_loader=train_loader,
         val_loader=val_loader,
+        final_activation="softmax",
     )
 
 
