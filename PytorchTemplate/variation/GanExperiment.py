@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import tqdm
-import torchattacks
+#import torchattacks
 from torchvision import transforms
 
 #!/usr/bin/env python3
@@ -49,11 +49,11 @@ class GanExperiment(Experiment):
                     self.tracker.save(f"{self.weight_dir}/{self.generator.module.name}.pt")
             else :
                 #discriminaor
-                torch.save(self.discriminator.state_dict(), f"{self.weight_dir}/{self.discriminator.name}.pt")
-                torch.save(self.optimizerD.state_dict(), f"{self.weight_dir}/optimizer_{self.discriminator.name}.pt")
+                torch.save(self.discriminator.state_dict(), f"{self.weight_dir}/discriminator.pt")
+                torch.save(self.optimizerD.state_dict(), f"{self.weight_dir}/optimizer_discriminator.pt")
                 #generator
-                torch.save(self.generator.state_dict(), f"{self.weight_dir}/{self.generator.name}.pt")
-                torch.save(self.optimizerG.state_dict(), f"{self.weight_dir}/optimizer_{self.generator.name}.pt")
+                torch.save(self.generator.state_dict(), f"{self.weight_dir}/generator.pt")
+                torch.save(self.optimizerG.state_dict(), f"{self.weight_dir}/optimizer_generator.pt")
                 if self.tracker is not None:
                     self.tracker.save(f"{self.weight_dir}/{self.discriminator.name}.pt")
 
@@ -190,7 +190,7 @@ class GanExperiment(Experiment):
 
 
         val_loss, results = self.validation_loop()
-        self.best_loss = val_loss
+        self.best_loss = val_loss / m
         logging.info(f"Starting training with validation loss : {self.best_loss}")
 
 
@@ -199,11 +199,12 @@ class GanExperiment(Experiment):
             if dist.is_initialized():
                 self.train_loader.sampler.set_epoch(self.epoch)
 
-            train_loss = self.training_loop()
+            train_lossG,train_lossD = self.training_loop()
             if self.rank == 0:
                 val_loss, results = self.validation_loop()
-                self.log_metric("training_loss", train_loss.cpu().item() / n, epoch=self.epoch)
-                self.log_metric("validation_loss", val_loss.cpu().item() / m, epoch=self.epoch)
+                self.log_metric("training_lossG", train_lossG.cpu().item() / n, epoch=self.epoch)
+                self.log_metric("training_lossD", train_lossD.cpu().item() / n, epoch=self.epoch)
+                self.log_metric("validation_loss", val_loss/m, epoch=self.epoch)
                 self.log_metrics(results, epoch=self.epoch)
 
 
@@ -211,7 +212,7 @@ class GanExperiment(Experiment):
 
 
                 # Finishing the loop
-            self.next_epoch(val_loss.cpu().item()) # the metric used to determine the best model is the validation loss here
+            self.next_epoch(val_loss/m) # the metric used to determine the best model is the validation loss here
             if self.epoch == self.epoch_max:
                 self.keep_training = False
         if logging :
@@ -252,7 +253,9 @@ class GanExperiment(Experiment):
 
                 noise = torch.randn(real_images.shape[0], 32, device=self.device) #TODO : self.config["latent_dim"] instead of hardcoded
 
+         
                 fake_images = self.generator(noise,c=labels)
+                #print(real_images.shape, fake_images.shape)
                 real_pred = self.discriminator(real_images,c=labels)
                 fake_pred = self.discriminator(fake_images,c=labels)
 
@@ -301,7 +304,7 @@ class GanExperiment(Experiment):
 
 
 
-        return [running_lossG,running_lossD]
+        return running_lossG,running_lossD
 
     @torch.no_grad()
     def validation_loop(self):

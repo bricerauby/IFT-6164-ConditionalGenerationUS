@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
@@ -20,7 +20,7 @@ import inspect
 import copy
 import uuid
 import types
-from .dnnlib import *
+import PytorchTemplate.models.torch_utils.dnnlib as dnnlib
 
 #----------------------------------------------------------------------------
 
@@ -113,7 +113,7 @@ def persistent_class(orig_class):
 
         @property
         def init_kwargs(self):
-            return EasyDict(copy.deepcopy(self._init_kwargs))
+            return dnnlib.EasyDict(copy.deepcopy(self._init_kwargs))
 
         def __reduce__(self):
             fields = list(super().__reduce__())
@@ -154,7 +154,7 @@ def import_hook(hook):
 
         hook(meta) -> modified meta
 
-    `meta` is an instance of `EasyDict` with the following fields:
+    `meta` is an instance of `dnnlib.EasyDict` with the following fields:
 
         type:       Type of the persistent object, e.g. `'class'`.
         version:    Internal version number of `torch_utils.persistence`.
@@ -180,8 +180,8 @@ def _reconstruct_persistent_obj(meta):
     r"""Hook that is called internally by the `pickle` module to unpickle
     a persistent object.
     """
-    meta = EasyDict(meta)
-    meta.state = EasyDict(meta.state)
+    meta = dnnlib.EasyDict(meta)
+    meta.state = dnnlib.EasyDict(meta.state)
     for hook in _import_hooks:
         meta = hook(meta)
         assert meta is not None
@@ -240,7 +240,7 @@ def _check_pickleable(obj):
             return [[recurse(x), recurse(y)] for x, y in obj.items()]
         if isinstance(obj, (str, int, float, bool, bytes, bytearray)):
             return None # Python primitive types are pickleable.
-        if f'{type(obj).__module__}.{type(obj).__name__}' in ['numpy.ndarray', 'torch.Tensor']:
+        if f'{type(obj).__module__}.{type(obj).__name__}' in ['numpy.ndarray', 'torch.Tensor', 'torch.nn.parameter.Parameter']:
             return None # NumPy arrays and PyTorch tensors are pickleable.
         if is_persistent(obj):
             return None # Persistent objects are pickleable, by virtue of the constructor check.

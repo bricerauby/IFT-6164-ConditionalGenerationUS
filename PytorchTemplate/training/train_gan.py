@@ -108,9 +108,9 @@ def main() :
     # setting up for the  experiment
 
    
-    from PytorchTemplate.models.StyleGAN import Generator, Discriminator
-    generator = Generator(z_dim=32, c_dim=1, w_dim=128, img_resolution=config["image_size"], img_channels=3)
-    discriminator = Discriminator(c_dim=1, img_resolution=config["image_size"], img_channels=3)
+    from PytorchTemplate.models.StyleGAN3 import Generator, Discriminator
+    generator = Generator(z_dim=32, c_dim=0, w_dim=128, img_resolution=config["image_size"], img_channels=3)
+    discriminator = Discriminator(c_dim=0, img_resolution=config["image_size"], img_channels=3)
 
     if torch.__version__>"2.0" and not config["debug"] and False :
         generator = torch.compile(generator)

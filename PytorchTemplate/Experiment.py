@@ -15,8 +15,8 @@ import warnings
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 import torch.distributed as dist
-import torch_optimizer
-import torchmetrics
+#import torch_optimizer
+#import torchmetrics
 import tqdm
 import timm
 
@@ -266,8 +266,8 @@ class Experiment:
             optimizer = getattr(torch.optim, optimizer)
 
 
-        elif optimizer in dir(torch_optimizer) :
-            optimizer = getattr(torch_optimizer, optimizer)
+        # elif optimizer in dir(torch_optimizer) :
+        #     optimizer = getattr(torch_optimizer, optimizer)
 
         else :
             raise NotImplementedError("The optimizer is not implemented yet")
@@ -284,8 +284,8 @@ class Experiment:
         print(criterion)
         if criterion in dir(torch.nn):
             self.criterion = getattr(torch.nn, criterion)()
-        elif criterion in dir(torchmetrics) :
-            self.criterion = getattr(torchmetrics, criterion)()
+        # elif criterion in dir(torchmetrics) :
+        #     self.criterion = getattr(torchmetrics, criterion)()
         else :
             raise NotImplementedError(f"The criterion {criterion} is not implemented yet")
 
