@@ -257,7 +257,14 @@ class Experiment:
         from sklearn.metrics import accuracy_score
 
         self.metrics = {
-            "accuracy" : accuracy_score
+            "accuracy" : lambda true,pred : accuracy_score(true,np.argmax(pred,axis=1)) # TODO : 
+            # switch
+            # to binary 
+            # accuracy
+            # if 
+            # the 
+            # number of classes 
+            # is 2
         }
 
 
