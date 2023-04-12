@@ -254,8 +254,11 @@ class Experiment:
         # else :
         #     self.metrics = None
         #     logging.info("No metrics have been specified. Only the loss will be computed")
+        from sklearn.metrics import accuracy_score
 
-        self.metrics = Metrics()#broken
+        self.metrics = {
+            "accuracy" : accuracy_score
+        }
 
 
 
@@ -288,8 +291,7 @@ class Experiment:
 
 
         self.scheduler = torch.optim.lr_scheduler.OneCycleLR(self.optimizer, max_lr=self.config["lr"], steps_per_epoch=len(self.train_loader), epochs=self.epoch_max)
-        self.swa_scheduler = SWALR(self.optimizer, swa_lr=self.config["lr"])
-        self.swa_start = self.config["swa_start"]
+
 
         if final_activation.lower() == "sigmoid" :
             self.final_activation = torch.nn.Sigmoid()
@@ -424,11 +426,8 @@ class Experiment:
 
             self.scaler.step(self.optimizer)
             self.scaler.update()
-            if self.epoch >= self.swa_start:
-                self.model.update_parameters(self.model)
-                self.swa_scheduler.step()
-            else:
-                self.scheduler.step()
+
+            self.scheduler.step()
 
             running_loss += loss.detach()
             # ending loop
@@ -442,8 +441,7 @@ class Experiment:
             )  # garbage management sometimes fails with cuda
             i += 1
 
-        if self.epoch >= self.swa_start and self.swa_start!=-1:
-            torch.optim.swa_utils.update_bn(self.train_loader, self.model,device=self.device)
+
         return running_loss
 
 
@@ -483,6 +481,7 @@ class Experiment:
             if self.use_features:
                 loss = self.criterion(features, labels)
             else:
+
                 loss = self.criterion(outputs, labels)
 
             running_loss += loss.detach()

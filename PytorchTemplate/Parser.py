@@ -6,18 +6,8 @@ def init_parser():
     parser = argparse.ArgumentParser(description="Launch variation for a specific model")
 
     parser.add_argument(
-        "--model",
-        default="densenet201",
-        const="all",
-        type=str,
-        nargs="?",
-        required=False,
-        help="Choice of the model",
-    )
-
-    parser.add_argument(
         "--image_size",
-        default=500,
+        default=256,
         const="all",
         type=int,
         nargs="?",
@@ -67,24 +57,8 @@ def init_parser():
         required=False,
         help="the probability of an augmentation. Between 0 and 1",
     )
-    # parser.add_argument(
-    #     "--augment_intensity",
-    #     default=0.1,
-    #     const="all",
-    #     type=float,
-    #     nargs="?",
-    #     required=False,
-    #     help="The intensity of the data augmentation.Between 0 and 1. Default is 0.1",
-    # )
-    parser.add_argument(
-        "--label_smoothing",
-        default=0,
-        const="all",
-        type=float,
-        nargs="?",
-        required=False,
-        help="Label smoothing. Should be small. Try 0.05",
-    )
+
+
     parser.add_argument(
         "--clip_norm",
         default=1,
@@ -133,7 +107,7 @@ def init_parser():
     )
     parser.add_argument(
         "--batch_size",
-        default=100,
+        default=2,
         const="all",
         type=int,
         nargs="?",
@@ -141,15 +115,6 @@ def init_parser():
         help="The batch size to use. If > max_batch_size,gradient accumulation will be used",
     )
 
-    parser.add_argument(
-        "--swa_start",
-        default=-1,
-        const="all",
-        type=int,
-        nargs="?",
-        required=False,
-        help="Number of epochs after which to use SWA. If 0, no SWA will be used",
-    )
 
     parser.add_argument(
         "--num_worker",
@@ -160,11 +125,6 @@ def init_parser():
         required=False,
         help="The number of process to use to retrieve the data. Please do not exceed 16",
     )
-
-
-
-
-
 
 
 
