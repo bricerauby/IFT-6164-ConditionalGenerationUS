@@ -220,14 +220,9 @@ class Experiment:
             model = timm.create_model(model_name, num_classes=self.num_classes, pretrained=True,
                                       drop_rate=self.config["drop_rate"]).to(self.device)
             name = model.default_cfg["architecture"]
-            model = AveragedModel(model)
             setattr(model, "name", name)
         else :
-            try :
-                from diffusers import DiffusionPipeline
-
-                model = DiffusionPipeline.from_pretrained(model_name)
-            except :
+         
                 raise ValueError(f"The model {model_name} is not implemented yet")
 
         self.model = model

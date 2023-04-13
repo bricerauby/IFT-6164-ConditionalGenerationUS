@@ -2,9 +2,9 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import tqdm
-#import torchattacks
-from torchvision import transforms
 
+from torchvision import transforms
+from torch import autograd
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -23,6 +23,36 @@ from PytorchTemplate.Experiment import Experiment
 from PytorchTemplate.Metrics import Metrics
 
 import torchmetrics
+
+
+def compute_gp(netD, real_data, fake_data,labels):
+    batch_size = real_data.size(0)
+    # Sample Epsilon from uniform distribution
+    eps = torch.rand(batch_size, 1, 1, 1).to(real_data.device)
+    eps = eps.expand_as(real_data)
+
+    # Interpolation between real data and fake data.
+    interpolation = eps * real_data + (1 - eps) * fake_data
+
+    # get logits for interpolated images
+    interp_logits = netD(interpolation,labels)
+    grad_outputs = torch.ones_like(interp_logits)
+
+    # Compute Gradients
+    gradients = autograd.grad(
+        outputs=interp_logits,
+        inputs=interpolation,
+        grad_outputs=grad_outputs,
+        create_graph=True,
+        retain_graph=True,
+    )[0]
+
+    # Compute and return Gradient Norm
+    gradients = gradients.view(batch_size, -1)
+    grad_norm = gradients.norm(2, 1)
+    return torch.mean((grad_norm - 1) ** 2)
+
+
 class GanExperiment(Experiment):
 
     def watch(self):
@@ -261,9 +291,8 @@ class GanExperiment(Experiment):
 
             #TODO : use the criterion instead of hard coded loss
             #IF keeping WGAN ; clip norm of the weights?
-            lossD = torch.mean(real_pred-fake_pred)
+            lossD = torch.mean(real_pred-fake_pred)+compute_gp(self.discriminator, real_images, fake_images,labels)
             lossG = torch.mean(fake_pred)
-
 
 
 
@@ -326,7 +355,7 @@ class GanExperiment(Experiment):
             # get the inputs; data is a list of [inputs, labels]
 
             # send to GPU
-            label = torch.randint(0, 10, (self.config["batch_size"],), device=self.device,dtype=dtype)[:,None]#TODO : remove hard coded
+            label = torch.randint(0, 10, (self.config["batch_size"],), device=self.device,dtype=dtype)[:,None] #TODO :remove hard coded
             noise = torch.randn(self.config["batch_size"], 32, device=self.device,dtype=dtype)
 
 
@@ -334,7 +363,10 @@ class GanExperiment(Experiment):
             with torch.cuda.amp.autocast(enabled=self.autocast):
 
                 images = self.generator(noise,c=label)
+                fake_pred = self.discriminator(images, c=label)
 
+            lossG = torch.mean(fake_pred)
+            running_loss += lossG.detach()
 
             for key,metric in self.metrics.items() :
                 results[key] += metric(images.float(), label.float())

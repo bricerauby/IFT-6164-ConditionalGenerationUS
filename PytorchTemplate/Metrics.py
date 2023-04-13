@@ -4,18 +4,21 @@ import timm.utils.metrics
 
 from sklearn.metrics import f1_score,recall_score,precision_score,roc_auc_score
 import inspect
-
+from PytorchTemplate import names
 import tqdm
 import torch
 import json
 class Metrics:
     def __init__(self,train_loader,debug=False):
 
-        inception = timm.create_model("inception_v4",pretrained=True).eval()
+        inception = timm.create_model("inception_v3",pretrained=True,num_classes=len(names)).eval()
+        inception.load_state_dict(
+            torch.load("models_weights/inception_v3.pt"))  # TODO : load the pretrained model trained on
         if torch.__version__>"2.0" and not debug and False :
             inception = torch.compile(inception)
         self.inception = inception
-        #self.inception.load_state_dict(torch.load("inception_v4.pt")) #TODO : load the pretrained model trained on the conditionnal data
+        
+        # the "conditionnal data
 
         if os.path.exists(f"inception_stats_{train_loader.dataset.__class__.__name__}.json") :
             with open(f"inception_stats_{train_loader.dataset.__class__.__name__}.json") as f :
