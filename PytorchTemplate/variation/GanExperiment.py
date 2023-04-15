@@ -281,7 +281,7 @@ class GanExperiment(Experiment):
             # ---------------- Forward Pass ----------------------
             with torch.cuda.amp.autocast(enabled=self.autocast):
 
-                noise = torch.randn(real_images.shape[0], 32, device=self.device) #TODO : self.config["latent_dim"] instead of hardcoded
+                noise = torch.randn(real_images.shape[0], self.config["z_dim"], device=self.device)
 
          
                 fake_images = self.generator(noise,c=labels)
@@ -355,8 +355,8 @@ class GanExperiment(Experiment):
             # get the inputs; data is a list of [inputs, labels]
 
             # send to GPU
-            label = torch.randint(0, 10, (self.config["batch_size"],), device=self.device,dtype=dtype)[:,None] #TODO :remove hard coded
-            noise = torch.randn(self.config["batch_size"], 32, device=self.device,dtype=dtype)
+            label = torch.randint(0,len(self.names), (self.config["batch_size"],), device=self.device,dtype=dtype)[:,None]
+            noise = torch.randn(self.config["batch_size"], self.config["z_dim"], device=self.device,dtype=dtype)
 
 
             # forward + backward + optimize

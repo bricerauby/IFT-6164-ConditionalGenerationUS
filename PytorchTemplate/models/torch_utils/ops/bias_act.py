@@ -43,7 +43,7 @@ def _init():
             sources=['bias_act.cpp', 'bias_act.cu'],
             headers=['bias_act.h'],
             source_dir=os.path.dirname(__file__),
-            extra_cuda_cflags=['--use_fast_math', '--allow-unsupported-compiler'],
+            extra_cuda_cflags=['--use_fast_math', '--allow-unsupported-compiler','-std=c++14'],#TODO : i downgraded to c++14 because of a bug in cuda
         )
     return True
 

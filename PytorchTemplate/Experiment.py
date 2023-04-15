@@ -219,6 +219,8 @@ class Experiment:
         if model_name in timm.list_models() :
             model = timm.create_model(model_name, num_classes=self.num_classes, pretrained=True,
                                       drop_rate=self.config["drop_rate"]).to(self.device)
+            if torch.__version__ > "2.0" and not self.config["debug"]:
+                model = torch.compile(model)
             name = model.default_cfg["architecture"]
             setattr(model, "name", name)
         else :

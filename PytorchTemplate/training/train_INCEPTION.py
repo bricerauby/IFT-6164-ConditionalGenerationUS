@@ -34,7 +34,7 @@ def main() :
     parser = init_parser()
     args = parser.parse_args()
     config = vars(args)
-    config["model"] = "inception_v3"
+    config["model"] = "resnet18"
     config["image_size"] = 256
     # -------- proxy config ----------------------------------------
     #

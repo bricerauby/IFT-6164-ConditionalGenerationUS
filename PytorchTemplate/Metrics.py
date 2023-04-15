@@ -11,11 +11,12 @@ import json
 class Metrics:
     def __init__(self,train_loader,debug=False):
 
-        inception = timm.create_model("inception_v3",pretrained=True,num_classes=len(names)).eval()
-        inception.load_state_dict(
-            torch.load("models_weights/inception_v3.pt"))  # TODO : load the pretrained model trained on
-        if torch.__version__>"2.0" and not debug and False :
+        inception = timm.create_model("resnet18",pretrained=True,num_classes=len(names)).eval()
+        if torch.__version__>"2.0" and not debug :
             inception = torch.compile(inception)
+        inception.load_state_dict(
+            torch.load("models_weights/resnet18.pt"))  # TODO : load the pretrained model trained on
+
         self.inception = inception
         
         # the "conditionnal data
@@ -65,7 +66,7 @@ class Metrics:
             sigma1 = torch.std(feature,dim=[0,])
 
             covmean = torch.cov(sigma1.T @ sigma2)**.5
-            print(mu1.shape, mu2.shape, sigma1.shape, sigma2.shape, covmean.shape)
+
             fid = (torch.mean((mu1 - mu2) ** 2 + (sigma1 - sigma2) ** 2) + torch.trace(
                 sigma1 + sigma2 - 2.0 * covmean)).cpu().item()
             fids.append(fid)

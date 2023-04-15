@@ -156,4 +156,27 @@ def init_parser():
     )
 
 
+#-----------------------
+#   Model hyperparameters
+
+    parser.add_argument(
+        "--w_dim",
+        default=128,
+        const="all",
+        type=int,
+        nargs="?",
+        required=False,
+        help="w_dim parameter of the generator",
+    )
+
+    parser.add_argument(
+        "--z_dim",
+        default=32,
+        const="all",
+        type=int,
+        nargs="?",
+        required=False,
+        help="z_dim parameter of the generator",
+    )
+
     return parser
