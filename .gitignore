@@ -163,3 +163,5 @@ cython_debug/
 .idea/
 /PytorchTemplate/data/
 /models_weights/
+.comet.config
+checkpoint/*

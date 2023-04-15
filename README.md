@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # Welcome to PytorchTemplate!
 
 This is a template for PyTorch projects. It is designed to be a starting point for new projects, and includes training and evaluation code for common tasks such as image classification and segmentation. It also includes a number of common components such as logging, visualization, and checkpointing.

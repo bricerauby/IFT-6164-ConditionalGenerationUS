@@ -1,0 +1,16 @@
+timm
+pandas
+scikit-learn
+comet-ml
+h5py
+matplotlib
+numpy>=1.20
+click>=8.0
+pillow==8.3.1
+scipy==1.7.1
+torch==1.9.1
+requests==2.26.0
+tqdm>=4.62.2
+ninja>=1.10.2
+imageio==2.9.0
+imageio-ffmpeg
