@@ -65,6 +65,7 @@ def main() :
     train_dataset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transforms.Compose([
 
         transforms.Resize(config["image_size"]),
+        transforms.Grayscale(num_output_channels=1),
         # transforms.RandomHorizontalFlip(),
         # Other transformations ...
         transforms.ToTensor(),

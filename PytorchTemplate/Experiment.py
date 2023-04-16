@@ -218,7 +218,7 @@ class Experiment:
         # -----------model initialisation------------------------------
         if model_name in timm.list_models() :
             model = timm.create_model(model_name, num_classes=self.num_classes, pretrained=True,
-                                      drop_rate=self.config["drop_rate"]).to(self.device)
+                                      drop_rate=self.config["drop_rate"],in_chans=1).to(self.device)
             if torch.__version__ > "2.0" and not self.config["debug"]:
                 model = torch.compile(model)
             name = model.default_cfg["architecture"]

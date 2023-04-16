@@ -1,13 +1,15 @@
 import os
 import torch
 import h5py
-import numpy as np 
+import numpy as np
+from torchvision import transforms
+
 
 class ClassifierDataset(torch.utils.data.Dataset):
     def __init__(self, prefix, pathMb, pathNoMb, num_frames=None):
         # Store the path for the HDF5 file
-        self.MBdataPath = os.path.join(prefix,pathMb)
-        self.noMBdataPath =  os.path.join(prefix,pathNoMb)
+        self.MBdataPath = os.path.join(prefix, pathMb)
+        self.noMBdataPath = os.path.join(prefix, pathNoMb)
         # Create an empty list to store data information
         self.data_info = []
         for path, label in zip([self.noMBdataPath, self.MBdataPath], [0, 1]):
@@ -15,7 +17,7 @@ class ClassifierDataset(torch.utils.data.Dataset):
             # keeping in mind that Matlab 
             with h5py.File(path, 'r') as h5f:
                 patches_dataset = h5f['patches']
-                
+
                 # Get the total number of patches and the number of frames per patch
                 num_patches = patches_dataset.shape[-1]
                 if num_frames is None:
@@ -38,10 +40,20 @@ class ClassifierDataset(torch.utils.data.Dataset):
             patches_dataset = h5f['patches']
             frame = patches_dataset[frame_idx, :, :, :, patch_idx]
             frame = frame.T
-            frame = np.sqrt(frame[0]**2 + frame[1]**2)
-            frame = (frame - frame.min())/(frame.max()-frame.min())
+            frame = np.sqrt(frame[0] ** 2 + frame[1] ** 2)
+            frame = (frame - frame.min()) / (frame.max() - frame.min())
         # Convert the frame to a PyTorch tensor
         frame_tensor = torch.tensor(frame, dtype=torch.float32)
         frame_tensor = frame_tensor.unsqueeze(0)
         # Return the frame tensor
-        return frame_tensor,label
+
+        return frame_tensor, label
+
+
+
+if __name__ == "__main__" :
+    dataPrefix = "/mnt/f/IFT6164/data"
+    train_dataset = ClassifierDataset(dataPrefix, 'trainMB.h5', 'trainNoMB.h5', num_frames=16)
+    val_dataset = ClassifierDataset(dataPrefix, 'testMB.h5', 'testNoMB.h5', num_frames=16)
+    image,label = train_dataset[0]
+    print(image.shape)

@@ -3,7 +3,6 @@ import os
 
 import warnings
 
-
 import torch
 import torch.distributed as dist
 import logging
@@ -15,9 +14,10 @@ from torch.optim.swa_utils import AveragedModel
 # -----local imports---------------------------------------
 from PytorchTemplate.Parser import init_parser
 from PytorchTemplate.variation.GanExperiment import GanExperiment as Experiment
-from PytorchTemplate import names
 
+# from PytorchTemplate import names
 
+names = ["MB", "NoMB"]
 
 # -----------cuda optimization tricks-------------------------
 # DANGER ZONE !!!!!
@@ -27,10 +27,7 @@ from PytorchTemplate import names
 torch.backends.cudnn.benchmark = True
 
 
-def main() :
-
-
-
+def main():
     parser = init_parser()
     args = parser.parse_args()
     config = vars(args)
@@ -49,41 +46,40 @@ def main() :
     # # install the openen on the module-level
     # urllib.request.install_opener(opener)
 
-
-
-
-
-
-    #----------- load the datasets--------------------------------
+    # ----------- load the datasets--------------------------------
     batch_size = config["batch_size"]
     shuffle = True
     num_workers = config["num_worker"]
     pin_memory = True
-    from torchvision import transforms,datasets
-    train_dataset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transforms.Compose([
-
-        # you can add here data augmentation with prob in config["augment_prob"]
-        transforms.Resize(config["image_size"]),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-
-    ]))
-
-    val_dataset = datasets.CIFAR10(root='./data', train=False, download=True, transform=transforms.Compose([
-
-        transforms.Resize(config["image_size"]),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-
-    ]))
-    #pytorch random sampler
-    num_samples  = 200 if config["debug"] else len(train_dataset)
-
+    # from torchvision import transforms,datasets
+    # train_dataset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transforms.Compose([
+    #
+    #     # you can add here data augmentation with prob in config["augment_prob"]
+    #     transforms.Resize(config["image_size"]),
+    #     transforms.ToTensor(),
+    #     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    #
+    # ]))
+    #
+    # val_dataset = datasets.CIFAR10(root='./data', train=False, download=True, transform=transforms.Compose([
+    #
+    #     transforms.Resize(config["image_size"]),
+    #     transforms.ToTensor(),
+    #     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    #
+    # ]))
+    from dataset.ClassifierDataset import ClassifierDataset
+    dataPrefix = "/mnt/f/IFT6164/data"
+    train_dataset = ClassifierDataset(dataPrefix, 'trainMB.h5', 'trainNoMB.h5', num_frames=16)
+    val_dataset = ClassifierDataset(dataPrefix, 'testMB.h5', 'testNoMB.h5', num_frames=16)
+    # pytorch random sampler
+    num_samples = 20 if config["debug"] else len(train_dataset)
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=batch_size,
-        sampler=torch.utils.data.RandomSampler(train_dataset, replacement=True, num_samples=num_samples , generator=None),
+        sampler=torch.utils.data.RandomSampler(train_dataset, replacement=True, num_samples=num_samples,
+                                               generator=None),
         num_workers=num_workers,
         pin_memory=pin_memory,
     )
@@ -95,24 +91,15 @@ def main() :
         pin_memory=pin_memory,
     )
 
-
-
-
-
-
-
-    #------------ Training --------------------------------------
-
-
+    # ------------ Training --------------------------------------
 
     # setting up for the  experiment
 
-   
     from PytorchTemplate.models.StyleGAN3 import Generator, Discriminator
-    generator = Generator(z_dim=32, c_dim=0, w_dim=128, img_resolution=config["image_size"], img_channels=3)
-    discriminator = Discriminator(c_dim=0, img_resolution=config["image_size"], img_channels=3)
+    generator = Generator(z_dim=config["z_dim"], c_dim=0, w_dim=config["w_dim"], img_resolution=config["image_size"], img_channels=1)
+    discriminator = Discriminator(c_dim=0, img_resolution=config["image_size"], img_channels=1)
 
-    if torch.__version__>"2.0" and not config["debug"] and False :
+    if torch.__version__ > "2.0" and not config["debug"] and False:
         generator = torch.compile(generator)
         discriminator = torch.compile(discriminator)
     experiment = Experiment(names, config)
@@ -120,19 +107,15 @@ def main() :
         generator=generator,
         discriminator=discriminator,
         optimizer="AdamW",
-        criterion="Dice",
+        criterion="Dice",  # not really. A custom loss is implemented in the experiment
         train_loader=train_loader,
         val_loader=val_loader,
     )
-
-
 
     results = experiment.train()
 
     experiment.end()
 
 
-
-
 if __name__ == "__main__":
-  main()
+    main()
