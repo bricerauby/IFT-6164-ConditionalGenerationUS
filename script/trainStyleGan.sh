@@ -5,13 +5,13 @@
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=6
 #SBATCH --job-name=train_genUlm
-#SBATCH --output=output_dir/ResNetUlm/%j-%x.out
+#SBATCH --output=output_dir/GanUlm/%j-%x.out
 
 cd ~/IFT-6164-ConditionalGenerationUS
 
 module load python/3.9
 module load cuda
-# module load httpproxy
+module load httpproxy
 # module load scipy-stack
 virtualenv --no-download $SLURM_TMPDIR/env
 source $SLURM_TMPDIR/env/bin/activate

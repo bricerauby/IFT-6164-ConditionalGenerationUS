@@ -169,6 +169,15 @@ def train(patch_sizeSimu=(2, 32, 32), nStepsPerEpoch=1000, n_epoch=10,
                                      experiment_kwargs={"experiment":experiment, "figure_name":"generated samples with MB"},dispLabel=False)
         
         print("loss generator {:1.1e} | loss discriminator MB {:1.1e} | loss discriminator No MB {:1.1e}".format(lossGenTotal,lossMbTotal,lossNoMbTotal))
+        state = {
+            'DiscrNoMB': discrNoMB.state_dict(),
+            'DiscrMB': discrMB.state_dict(),
+            'Generator': gen.state_dict(),
+        }
+        if not os.path.isdir('checkpointGan'):
+            os.mkdir('checkpointGan')
+        torch.save(state, './checkpointGan/' + experiment.name)
+        print('Model Saved!')
 
 
 
