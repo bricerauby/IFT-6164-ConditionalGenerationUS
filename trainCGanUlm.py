@@ -1,30 +1,22 @@
-from stylegan3.training.networks_stylegan2 import Discriminator
-from stylegan3.training.networks_stylegan2 import Generator
-from dataset.GanDataset import GanDataset, SimuDataset
+from comet_ml import Experiment
 import sys
 import os
 import numpy as np
 import torch
 import tqdm
+import glob
 sys.path.append("stylegan3")
+from stylegan3.training.networks_stylegan2 import Discriminator
+from stylegan3.training.networks_stylegan2 import Generator
+from dataset.GanDataset import GanDataset, SimuDataset
+from display.functionnalDisplay import build_figure_samples
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-parameters = {"patch_sizeSimu": (2, 32, 32),
-              "nStepsPerEpoch": 1000,
-              "n_epoch": 10,
-              "num_workers": 6,
-              "batch_size" : 64,
-"genLatentDim" : 32,
-"n_step_discr" : 3,
-"lambda_gp" : 1e2,
-"lr" : 1e-4,
-"betas" : [0.5, 0.9],
-              }
 
 def generate_sample(generator, batch_simu):
     # reshape simulated sample to conditionned the generator
-    batch_size= batch_simu.shape[0]
-    genLatentDim = generator.zdim
+    batch_size = batch_simu.shape[0]
+    genLatentDim = generator.z_dim
     cond = batch_simu.reshape(batch_size, -1).to(device)
     # sample latent space
     z = torch.randn(batch_size, genLatentDim).to(device)
@@ -79,7 +71,7 @@ def discr_update(real, generated, discr, optim, lambda_gp):
 
 def train(patch_sizeSimu=(2, 32, 32), nStepsPerEpoch=1000, n_epoch=10,
           num_workers=6, batch_size=64, genLatentDim=32, n_step_discr=3,
-          lambda_gp=1e2, lr=1e-4, betas=[0.5, 0.9]):
+          lambda_gp=1e2, lr=1e-4, betas=[0.5, 0.9], experiment=None):
     dataRealPrefix = os.path.join(os.environ.get(
         'SLURM_TMPDIR'), 'patchesIQ_small_shuffled')
     dataSimuPath = os.path.join(os.environ.get(
@@ -125,6 +117,9 @@ def train(patch_sizeSimu=(2, 32, 32), nStepsPerEpoch=1000, n_epoch=10,
 
     for epoch in range(n_epoch):
         print('EPOCH : {}/{}'.format(epoch, n_epoch))
+        lossNoMbTotal = 0
+        lossMbTotal=0
+        lossGenTotal = 0
         for iStep in tqdm.tqdm(range(nStepsPerEpoch)):
             for i in range(n_step_discr):
                 gen.eval()
@@ -136,12 +131,17 @@ def train(patch_sizeSimu=(2, 32, 32), nStepsPerEpoch=1000, n_epoch=10,
                 realMb, _ = next(iterMB)
                 realNoMb = realNoMb.to(device)
                 realMb = realMb.to(device)
-                lossMb = discr_update(
-                    realMb, genMb, discrMB, optimizerdiscrMb, lambda_gp)
-                lossNoMb = discr_update(
-                    realNoMb, genNoMb, discrNoMB, optimizerdiscrNoMb)
-                print('loss discr Mb {} | , loss discr no MB {}'.format(
-                    lossMb, lossNoMb))
+                lossMb = discr_update(realMb,
+                                      genMb, discrMB,
+                                      optimizerdiscrMb,
+                                      lambda_gp)
+                lossNoMb = discr_update(realNoMb,
+                                        genNoMb,
+                                        discrNoMB,
+                                        optimizerdiscrNoMb,
+                                        lambda_gp)
+                lossNoMbTotal += lossNoMb
+                lossMbTotal += lossMb
 
             gen.train()
             optimizerGen.zero_grad()
@@ -150,7 +150,46 @@ def train(patch_sizeSimu=(2, 32, 32), nStepsPerEpoch=1000, n_epoch=10,
                 discrNoMB(genNoMb, None).mean()
             lossGen.backward()
             optimizerGen.step()
-            print('loss Gen : ', lossGen.item())
+            lossGenTotal += lossGen.item()
+        lossGenTotal /= nStepsPerEpoch 
+        lossMbTotal /= n_step_discr * nStepsPerEpoch
+        lossNoMbTotal /= n_step_discr * nStepsPerEpoch
+
+        if experiment: 
+            experiment.log_metric("loss generator", lossGenTotal, epoch=epoch)
+            experiment.log_metric("loss discriminator MB", lossMbTotal, epoch=epoch)
+            experiment.log_metric("loss discriminator noMB", lossNoMbTotal, epoch=epoch)
+
+            with torch.no_grad():
+                build_figure_samples((torch.sqrt(batch_simu[:,0,:,:]**2 + batch_simu[:,1,:,:]**2).cpu()),
+                                     experiment_kwargs={"experiment":experiment, "figure_name":"simulation cond"},dispLabel=False)
+                build_figure_samples(genNoMb.cpu(),
+                                     experiment_kwargs={"experiment":experiment, "figure_name":"generated samples without MB"},dispLabel=False)
+                build_figure_samples(genMb.cpu(),
+                                     experiment_kwargs={"experiment":experiment, "figure_name":"generated samples with MB"},dispLabel=False)
+        
+        print("loss generator {:1.1e} | loss discriminator MB {:1.1e} | loss discriminator No MB {:1.1e}".format(lossGenTotal,lossMbTotal,lossNoMbTotal))
+
+
 
 if __name__ == '__main__':
-    train(**parameters)
+
+    parameters = {"patch_sizeSimu": (2, 32, 32),
+                  "nStepsPerEpoch": 100,
+                  "n_epoch": 100,
+                  "num_workers": 6,
+                  "batch_size": 64,
+                  "genLatentDim": 32,
+                  "n_step_discr": 5,
+                  "lambda_gp": 1e1,
+                  "lr": 1e-4,
+                  "betas": [0.5, 0.9],
+                  }
+    experiment = Experiment(project_name='cgenulm',
+                            workspace='bricerauby', auto_log_co2=False)
+    experiment.add_tag('wgan-gp')
+    experiment.set_name(os.environ.get('SLURM_JOB_ID') +
+                        '_' + experiment.get_name())
+    code_list = glob.glob("**/*.py", recursive=True)
+    experiment.log_parameters(parameters)
+    train(**parameters, experiment=experiment)

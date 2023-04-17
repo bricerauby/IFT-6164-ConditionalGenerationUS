@@ -24,6 +24,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 experiment = Experiment(project_name='cgenulm',
                             workspace='bricerauby', auto_log_co2=False)
 experiment.set_name(os.environ.get('SLURM_JOB_ID') + '_' + experiment.get_name())
+experiment.add_tag('resnet-18')
 code_list = glob.glob("**/*.py", recursive=True)
 
 train_dataset = ClassifierDataset(dataPrefix, 'trainMB.h5', 'trainNoMB.h5',num_frames=16)

@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=6
-#SBATCH --job-name=trainResNetUlm
+#SBATCH --job-name=train_genUlm
 #SBATCH --output=output_dir/ResNetUlm/%j-%x.out
 
 cd ~/IFT-6164-ConditionalGenerationUS
@@ -21,4 +21,4 @@ pip install --no-index -r requirementsCCStyleGan.txt
 cp -rv ~/scratch/data/data_CGenULM/patchesIQ_small_shuffled $SLURM_TMPDIR/
 cp -rv ~/scratch/data/data_CGenULM/cGenUlmSimu $SLURM_TMPDIR/
 
-python trainResNetULM.py
+python trainCGanUlm.py
