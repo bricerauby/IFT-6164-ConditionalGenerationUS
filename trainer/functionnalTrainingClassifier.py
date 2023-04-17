@@ -64,10 +64,9 @@ def test(val_loader, net, epoch, experiment, criterion, device):
         torch.save(state, './checkpoint/' + experiment.name)
         print('Model Saved!')
 
-def adjust_learning_rate(optimizer, epoch, lr):
-    if epoch >= 100:
-        lr /= 10
-    if epoch >= 150:
-        lr /= 10
+def adjust_learning_rate(optimizer, epoch, lr, decay=[100,150]):
+    for step in decay:
+        if epoch >= step:
+            lr /= 10
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr

@@ -45,6 +45,6 @@ optimizer = optim.SGD(net.parameters(), lr=learning_rate, momentum=momentum, wei
 
 
 for epoch in range(0, 200):
-    adjust_learning_rate(optimizer, epoch, learning_rate)
+    adjust_learning_rate(optimizer, epoch, learning_rate, decay=[10,15])
     train(train_loader, net, epoch, experiment, optimizer,criterion, device)
     test(test_loader, net, epoch, experiment,criterion, device)
