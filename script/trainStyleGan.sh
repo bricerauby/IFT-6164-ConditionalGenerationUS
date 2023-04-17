@@ -19,4 +19,6 @@ pip install --no-index --upgrade pip
 pip install --no-index -r requirementsCCStyleGan.txt
 
 cp -rv ~/scratch/data/data_CGenULM/patchesIQ_small_shuffled $SLURM_TMPDIR/
+cp -rv ~/scratch/data/data_CGenULM/cGenUlmSimu $SLURM_TMPDIR/
+
 python trainResNetULM.py
