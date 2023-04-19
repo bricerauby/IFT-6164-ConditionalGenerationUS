@@ -14,8 +14,7 @@ class Metrics:
         inception = timm.create_model("resnet18",pretrained=True,num_classes=len(names),in_chans=1).eval()
         if torch.__version__>"2.0" and not debug :
             inception = torch.compile(inception)
-        # inception.load_state_dict(
-        #     torch.load("models_weights/resnet18.pt"))  # TODO : load the pretrained model trained on
+        modelPath = 'checkpoint/65241799_overseas_square_1733'
 
         self.inception = inception
         

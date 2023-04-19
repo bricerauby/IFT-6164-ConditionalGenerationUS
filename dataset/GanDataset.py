@@ -5,18 +5,14 @@ import numpy as np
 from .GenericDataset import PatchDataset, get_data_info
 
 class GanDataset(PatchDataset):
-    def __init__(self, prefix, path, label, num_frames=None):
+    def __init__(self, prefix, path, label, num_frames=None, reduced_len=None):
         # Store the path for the HDF5 file
         path = os.path.join(prefix, path)
         data_info = get_data_info(path,label,num_frames) 
-        super().__init__(data_info)
+        super().__init__(data_info,reduced_len)
 
 
 class SimuDataset(torch.utils.data.Dataset):
-    """
-    A Abstract subclass of dataset for handling patches.
-    """
-
     def __init__(self, path, num_frames):
         with h5py.File(path, 'r') as h5f:
             self.groups = list(h5f.keys())
