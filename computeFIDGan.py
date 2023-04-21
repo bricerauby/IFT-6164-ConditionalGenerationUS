@@ -22,9 +22,6 @@ net = net.to(device)
 net = torch.nn.DataParallel(net)
 net.load_state_dict(torch.load(modelPath)['net'])
 net.eval()
-
-print(net)
-
 batch_size= 128
 reduced_len = 175000
 featureSize = 512
@@ -32,37 +29,39 @@ featureSize = 512
 # datasetPath = os.path.join(os.environ.get('SLURM_TMPDIR'),'BaselineCGenPatches.h5')
 
 datasetPath = os.path.join(os.environ.get('SLURM_TMPDIR'),'GanCGenPatches.h5')
-dataset = GanSampleDataset(datasetPath,num_frames=16,reduced_len=reduced_len, key='patchesMb')
+dataset = GanSampleDataset(datasetPath,num_frames=16,reduced_len=reduced_len, key='patchesNoMb')
 dataLoader = torch.utils.data.DataLoader(dataset, num_workers=6, batch_size=128, pin_memory=True,shuffle=False,drop_last=True)
-all_intermediates= torch.zeros(batch_size*len(dataLoader),featureSize,dtype=torch.float16)
+all_intermediates= torch.zeros(batch_size*len(dataLoader),featureSize)
 with torch.no_grad():
     for ibatch, batch in tqdm.tqdm(enumerate(dataLoader)):
         x,_ = batch
         x = x.to(device)
         _,intermediate = net(x, get_intermediate=True)
-        all_intermediates[ibatch:ibatch+128] = intermediate.cpu().half()
+        all_intermediates[ibatch:ibatch+128] = intermediate.cpu()
+all_intermediates = all_intermediates.numpy()
+mu_sim = np.mean(all_intermediates,axis=0)
+sigma_sim = np.cov(all_intermediates,rowvar=False)
 
-mu_sim = torch.mean(all_intermediates,dim=0)
-all_intermediates= all_intermediates.float()
-sigma_sim = torch.cov(all_intermediates.T)
 # DatasetPath
 dataRealPrefix = os.path.join(os.environ.get(
         'SLURM_TMPDIR'), 'patchesIQ_small_shuffled')
 datasetMb = GanDataset(dataRealPrefix, 'testNoMB.h5', 0, num_frames=16,reduced_len=reduced_len)
 dataLoader = torch.utils.data.DataLoader(datasetMb, num_workers=6, batch_size=128, pin_memory=True,shuffle=False,drop_last=True)
-all_intermediates= torch.zeros(batch_size*len(dataLoader),featureSize,dtype=torch.float16)
+all_intermediates= torch.zeros(batch_size*len(dataLoader),featureSize)
 with torch.no_grad():
     for ibatch, batch in tqdm.tqdm(enumerate(dataLoader)):
         x,_ = batch
         x = x.to(device)
         _,intermediate = net(x, get_intermediate=True)
-        all_intermediates[ibatch:ibatch+128] = intermediate.cpu().half()
+        all_intermediates[ibatch:ibatch+128] = intermediate.cpu()
 
-mu_real = torch.mean(all_intermediates,dim=0)
-all_intermediates= all_intermediates.float()
-sigma_real = torch.cov(all_intermediates.T)
-print('FID p_gbaseline vs P_dNoMb :')
-print(torch.linalg.norm(mu_real - mu_sim) + torch.trace(sigma_real)+torch.trace(sigma_sim)-2*np.trace(linalg.sqrtm((sigma_real@sigma_sim).numpy()).real))
+all_intermediates = all_intermediates.numpy()
+mu_real = np.mean(all_intermediates,axis=0)
+sigma_real = np.cov(all_intermediates,rowvar=False)
+eps= np.eye(sigma_real.shape[0]) * 1e-8
+
+print('FID p_gGan vs P_dNoMb :')
+print(np.mean((mu_real - mu_sim)**2) + np.trace(sigma_real)+np.trace(sigma_sim)-2*np.trace(linalg.sqrtm(((sigma_real+eps)@(sigma_sim+eps)))))
 
 
 # DatasetPath
@@ -70,17 +69,18 @@ dataRealPrefix = os.path.join(os.environ.get(
         'SLURM_TMPDIR'), 'patchesIQ_small_shuffled')
 datasetMb = GanDataset(dataRealPrefix, 'testMB.h5', 0, num_frames=16,reduced_len=reduced_len)
 dataLoader = torch.utils.data.DataLoader(datasetMb, num_workers=6, batch_size=128, pin_memory=True,shuffle=False,drop_last=True)
-all_intermediates= torch.zeros(batch_size*len(dataLoader),featureSize,dtype=torch.float16)
+all_intermediates= torch.zeros(batch_size*len(dataLoader),featureSize,dtype=float)
 with torch.no_grad():
     for ibatch, batch in tqdm.tqdm(enumerate(dataLoader)):
         x,_ = batch
         x = x.to(device)
         _,intermediate = net(x, get_intermediate=True)
-        all_intermediates[ibatch:ibatch+128] = intermediate.cpu().half()
+        all_intermediates[ibatch:ibatch+128] = intermediate.cpu()
 
-mu_real = torch.mean(all_intermediates,dim=0)
-all_intermediates= all_intermediates.float()
-sigma_real = torch.cov(all_intermediates.T)
-print('FID p_gbaseline vs P_dMb :')
+all_intermediates = all_intermediates.numpy()
+mu_real = np.mean(all_intermediates,axis=0)
+sigma_real = np.cov(all_intermediates,rowvar=False)
 
-print(torch.linalg.norm(mu_real - mu_sim) + torch.trace(sigma_real)+torch.trace(sigma_sim)-2*np.trace(linalg.sqrtm((sigma_real@sigma_sim).numpy()).real))
+
+print('FID p_gGan vs P_dMb :')
+print(np.mean((mu_real - mu_sim)**2) + np.trace(sigma_real)+np.trace(sigma_sim)-2*np.trace(linalg.sqrtm(((sigma_real+eps)@(sigma_sim+eps)))))
