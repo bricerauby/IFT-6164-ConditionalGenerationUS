@@ -17,6 +17,7 @@ from  PytorchTemplate.models.torch_utils.ops import fma
 
 #----------------------------------------------------------------------------
 
+
 @misc.profiled_function
 def normalize_2nd_moment(x, dim=1, eps=1e-8):
     return x * (x.square().mean(dim=dim, keepdim=True) + eps).rsqrt()
@@ -219,7 +220,7 @@ class MappingNetwork(torch.nn.Module):
                 misc.assert_shape(z, [None, self.z_dim])
                 x = normalize_2nd_moment(z.to(torch.float32))
             if self.c_dim > 0:
-                misc.assert_shape(c, [None, self.c_dim])
+                #misc.assert_shape(c, [None, self.c_dim])
                 y = normalize_2nd_moment(self.embed(c.to(torch.float32)))
                 x = torch.cat([x, y], dim=1) if x is not None else y
 
@@ -730,11 +731,11 @@ class Discriminator(torch.nn.Module):
 
 
 if __name__== '__main__':
-    generator = Generator(z_dim=32,c_dim=1,w_dim=64, img_resolution=32, img_channels=3,).to(device='cuda')
-    discriminator = Discriminator(c_dim=1,img_resolution=32,img_channels=3).to(device='cuda')
-    x = torch.randn(1,32).to("cuda")
-    cond = torch.tensor([0,]).reshape(1,1).to("cuda")
-    y = generator(x,c=cond)
+    generator = Generator(z_dim=32,c_dim=32*32,w_dim=64, img_resolution=32, img_channels=3,).to(device='cuda')
+    discriminator = Discriminator(c_dim=32*32,img_resolution=32,img_channels=3).to(device='cuda')
+    z = torch.randn((1,32)).to("cuda")
+    cond = torch.randn((1,32*32)).to("cuda")
+    y = generator(z,c=cond.flatten(start_dim=1))
     print(y.shape)
-    z = discriminator(y,c=cond)
+    z = discriminator(y,c=cond.flatten(start_dim=1))
     print(z.shape)
