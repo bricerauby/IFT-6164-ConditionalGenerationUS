@@ -201,8 +201,18 @@ class MappingNetwork(torch.nn.Module):
             layer_features = w_dim
         features_list = [z_dim + embed_features] + [layer_features] * (num_layers - 1) + [w_dim]
 
-        if c_dim > 0:
-            self.embed = FullyConnectedLayer(c_dim, embed_features)
+        # if c_dim > 0:
+        #     self.embed = FullyConnectedLayer(c_dim, embed_features)
+        if c_dim is not None:
+            #self.embed = FullyConnectedLayer(c_dim, embed_features)
+            self.embed = torch.nn.Sequential(
+                torch.nn.Conv2d(1,32,kernel_size=7,stride=5),#TODO : arbitrary number of channels ; hardcoded
+                torch.nn.ReLU(),
+                torch.nn.Conv2d(32,1,kernel_size=3,stride=1),
+                torch.nn.ReLU(),
+                torch.nn.Flatten(),
+                torch.nn.Linear(16,out_features=w_dim)
+            )
         for idx in range(num_layers):
             in_features = features_list[idx]
             out_features = features_list[idx + 1]
@@ -221,6 +231,7 @@ class MappingNetwork(torch.nn.Module):
                 x = normalize_2nd_moment(z.to(torch.float32))
             if self.c_dim > 0:
                 #misc.assert_shape(c, [None, self.c_dim])
+
                 y = normalize_2nd_moment(self.embed(c.to(torch.float32)))
                 x = torch.cat([x, y], dim=1) if x is not None else y
 
@@ -731,11 +742,11 @@ class Discriminator(torch.nn.Module):
 
 
 if __name__== '__main__':
-    generator = Generator(z_dim=32,c_dim=32*32,w_dim=64, img_resolution=32, img_channels=3,).to(device='cuda')
-    discriminator = Discriminator(c_dim=32*32,img_resolution=32,img_channels=3).to(device='cuda')
+    generator = Generator(z_dim=32,c_dim=64,w_dim=64, img_resolution=32, img_channels=1,).to(device='cuda')
+    discriminator = Discriminator(c_dim=64,img_resolution=32,img_channels=1).to(device='cuda')
     z = torch.randn((1,32)).to("cuda")
-    cond = torch.randn((1,32*32)).to("cuda")
-    y = generator(z,c=cond.flatten(start_dim=1))
+    cond = torch.randn((1,1,32,32)).to("cuda")
+    y = generator(z,c=cond)
     print(y.shape)
-    z = discriminator(y,c=cond.flatten(start_dim=1))
+    z = discriminator(y,c=cond)
     print(z.shape)
