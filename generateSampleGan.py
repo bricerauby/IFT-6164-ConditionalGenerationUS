@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 import os
 import tqdm
-from trainCGanUlm import generate_sample
+from trainStyleGanUlm import generate_sample
 from dataset.GanDataset import  SimuDataset
 
 import h5py
