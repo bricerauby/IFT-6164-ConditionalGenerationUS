@@ -17,18 +17,21 @@ from torchvision import models
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # RESNET Path 
 
-netMB = models.resnet18(pretrained=True)
-netMB = netMB.to(device)
-#netMB = torch.nn.DataParallel(netMB)
-netMB.load_state_dict(torch.load("./improved-netMB.pt"))
-netMB.eval()
+net = models.resnet18(pretrained=True)
+net = net.to(device)
+net.load_state_dict(torch.load("./improved-net.pt"))
+net = torch.nn.DataParallel(net)
+
+net.eval()
 
 
-netNoMB = models.resnet18(pretrained=True)
-netNoMB = netNoMB.to(device)
-#netNoMB = torch.nn.DataParallel(netNoMB)
-netNoMB.load_state_dict(torch.load("./improved-netNoMB.pt"))
-netNoMB.eval()
+net = models.resnet18(pretrained=True)
+net.fc = nn.Linear(512, 2)
+net = net.to(device)
+net.load_state_dict(torch.load("./improved-netBoth.pt"))
+net = torch.nn.DataParallel(net)
+
+net.eval()
 batch_size= 128
 reduced_len = 175000
 featureSize = 512
@@ -44,7 +47,7 @@ with torch.no_grad():
         x,_ = batch
         x = x.to(device)
 
-        _,intermediate = netNoMB(x, get_intermediate=True)
+        _,intermediate = net(x, get_intermediate=True)
         all_intermediates[ibatch:ibatch+128] = intermediate.cpu()
 all_intermediates = all_intermediates.numpy()
 mu_sim = np.mean(all_intermediates,axis=0)
@@ -60,7 +63,7 @@ with torch.no_grad():
     for ibatch, batch in tqdm.tqdm(enumerate(dataLoader)):
         x,_ = batch
         x = x.to(device)
-        _,intermediate = netNoMB(x, get_intermediate=True)
+        _,intermediate = net(x, get_intermediate=True)
         all_intermediates[ibatch:ibatch+128] = intermediate.cpu()
 
 all_intermediates = all_intermediates.numpy()
@@ -82,7 +85,7 @@ with torch.no_grad():
     for ibatch, batch in tqdm.tqdm(enumerate(dataLoader)):
         x,_ = batch
         x = x.to(device)
-        _,intermediate = netMB(x, get_intermediate=True)
+        _,intermediate = net(x, get_intermediate=True)
         all_intermediates[ibatch:ibatch+128] = intermediate.cpu()
 
 all_intermediates = all_intermediates.numpy()
