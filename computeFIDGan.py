@@ -1,4 +1,4 @@
-from comet_ml import Experiment
+#from comet_ml import Experiment
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -13,15 +13,22 @@ from dataset.BaselineDataset import GanSampleDataset
 from dataset.GanDataset import GanDataset
 from display.functionnalDisplay import display_random_samples
 from scipy import linalg
-
+from torchvision import models
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # RESNET Path 
-modelPath = 'checkpoint/65293955_cold_flue_7186'
-net = ResNet18(in_chans=1)
-net = net.to(device)
-net = torch.nn.DataParallel(net)
-net.load_state_dict(torch.load(modelPath)['net'])
-net.eval()
+
+netMB = models.resnet18(pretrained=True)
+netMB = netMB.to(device)
+#netMB = torch.nn.DataParallel(netMB)
+netMB.load_state_dict(torch.load("./improved-netMB.pt"))
+netMB.eval()
+
+
+netNoMB = models.resnet18(pretrained=True)
+netNoMB = netNoMB.to(device)
+#netNoMB = torch.nn.DataParallel(netNoMB)
+netNoMB.load_state_dict(torch.load("./improved-netNoMB.pt"))
+netNoMB.eval()
 batch_size= 128
 reduced_len = 175000
 featureSize = 512
@@ -36,7 +43,8 @@ with torch.no_grad():
     for ibatch, batch in tqdm.tqdm(enumerate(dataLoader)):
         x,_ = batch
         x = x.to(device)
-        _,intermediate = net(x, get_intermediate=True)
+
+        _,intermediate = netNoMB(x, get_intermediate=True)
         all_intermediates[ibatch:ibatch+128] = intermediate.cpu()
 all_intermediates = all_intermediates.numpy()
 mu_sim = np.mean(all_intermediates,axis=0)
@@ -52,7 +60,7 @@ with torch.no_grad():
     for ibatch, batch in tqdm.tqdm(enumerate(dataLoader)):
         x,_ = batch
         x = x.to(device)
-        _,intermediate = net(x, get_intermediate=True)
+        _,intermediate = netNoMB(x, get_intermediate=True)
         all_intermediates[ibatch:ibatch+128] = intermediate.cpu()
 
 all_intermediates = all_intermediates.numpy()
@@ -74,7 +82,7 @@ with torch.no_grad():
     for ibatch, batch in tqdm.tqdm(enumerate(dataLoader)):
         x,_ = batch
         x = x.to(device)
-        _,intermediate = net(x, get_intermediate=True)
+        _,intermediate = netMB(x, get_intermediate=True)
         all_intermediates[ibatch:ibatch+128] = intermediate.cpu()
 
 all_intermediates = all_intermediates.numpy()
