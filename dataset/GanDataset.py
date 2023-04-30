@@ -9,7 +9,7 @@ class GanDataset(PatchDataset):
     def __init__(self, prefix, path, label, num_frames=None, reduced_len=None):
         # Store the path for the HDF5 file
         path = os.path.join(prefix, path)
-
+        self.file  = h5py.File(path, 'r')
         data_info = get_data_info(path, label, num_frames)
         super().__init__(data_info, reduced_len)
 
