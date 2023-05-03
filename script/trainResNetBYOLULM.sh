@@ -4,22 +4,18 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=6
-#SBATCH --job-name=train_genUlm
-#SBATCH --output=output_dir/GanUlm/%j-%x.out
+#SBATCH --job-name=trainResNetUlm
+#SBATCH --output=output_dir/ResNetUlm/%j-%x.out
 
 cd ~/IFT-6164-ConditionalGenerationUS
 
 module load python/3.9
-module load cuda
-module load httpproxy
+# module load httpproxy
 # module load scipy-stack
 virtualenv --no-download $SLURM_TMPDIR/env
 source $SLURM_TMPDIR/env/bin/activate
 pip install --no-index --upgrade pip
-pip install --no-index -r requirementsCCStyleGan.txt
-
+pip install --no-index -r requirementsCC.txt
+pip install byol-pytorch
 cp -rv ~/scratch/data/data_CGenULM/patchesIQ_small_shuffled $SLURM_TMPDIR/
-cp -rv ~/scratch/data/data_CGenULM/cGenUlmSimu $SLURM_TMPDIR/
-cp -v ~/scratch/GanCGenPatches.h5 $SLURM_TMPDIR/
-cp -v ~/scratch/data/data_CGenULM/BaselineCGenPatches.h5 $SLURM_TMPDIR/
-python trainStyleGanUlm.py
+python trainBYOL.py

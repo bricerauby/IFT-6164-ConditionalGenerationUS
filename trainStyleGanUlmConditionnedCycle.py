@@ -9,6 +9,7 @@ sys.path.append("stylegan3")
 from stylegan3.training.networks_stylegan2 import Discriminator
 from stylegan3.training.networks_stylegan2 import Generator
 from dataset.GanDataset import GanDataset, SimuDataset
+from models.gan import Unet
 from display.functionnalDisplay import build_figure_samples
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -20,16 +21,9 @@ def generate_sample(generator, batch_simu):
     cond = batch_simu.reshape(batch_size, -1).to(device)
     # sample latent space
     z = torch.randn(batch_size, genLatentDim).to(device)
-    genNoMb = generator(z, cond)
+    genMb = generator(z, cond)
+    return genMb
 
-    # compute the corresponding sample with the MB added (as a complex signal)
-    genMb = genNoMb+batch_simu
-    genMb = torch.sqrt(genMb[:, 0, :, :]**2 +
-                       genMb[:, 1, :, :]**2).unsqueeze(1)
-    genNoMb = torch.sqrt(genNoMb[:, 0, :, :]**2 +
-                         genNoMb[:, 1, :, :]**2).unsqueeze(1)
-
-    return genNoMb, genMb
 
 
 def calc_gradient_penalty(discr, real_data, fake_data, lambda_gp=10):
@@ -78,21 +72,14 @@ def train(patch_sizeSimu=(2, 32, 32), nStepsPerEpoch=1000, n_epoch=10,
         'SLURM_TMPDIR'), 'cGenUlmSimu', 'seg1_frames_1000bb_20s_seed_1_0.h5')
     cdim = np.prod(patch_sizeSimu)
 
-    gen = Generator(z_dim=genLatentDim, c_dim=cdim, w_dim=128,
-                    img_resolution=32, img_channels=2).to(device)
-    discrMB = Discriminator(c_dim=0, img_resolution=32,
-                            img_channels=1).to(device)
-    discrNoMB = Discriminator(
-        c_dim=0, img_resolution=32, img_channels=1).to(device)
+    gen_sim2real = Generator(z_dim=genLatentDim, c_dim=cdim, w_dim=128,
+                    img_resolution=32, img_channels=1).to(device)
+    gen_real2sim = Unet(input_channel=1, n_chans_out=1, nblocs=3,dim=2).to(device)
+    discr_f = Discriminator(c_dim=0, img_resolution=32,
+                            img_channels=2).to(device)
 
-    datasetNoMb = GanDataset(dataRealPrefix, 'trainMB.h5', 1, num_frames=16)
-    datasetMb = GanDataset(dataRealPrefix, 'trainNoMB.h5', 0, num_frames=16)
-    datasetSimu = SimuDataset(dataSimuPath, num_frames=16)
-
-    noMbsampler = torch.utils.data.RandomSampler(
-        datasetNoMb, replacement=True, num_samples=int(1e10))
-    noMbLoader = torch.utils.data.DataLoader(
-        datasetNoMb, num_workers=num_workers//3, batch_size=batch_size, pin_memory=True, sampler=noMbsampler)
+    datasetMb = GanDataset(dataRealPrefix, 'trainMB.h5', 1, num_frames=16)
+    datasetSimu = SimuDataset(dataSimuPath, num_frames=16, real=True)
 
     Mbsampler = torch.utils.data.RandomSampler(
         datasetMb, replacement=True, num_samples=int(1e10))
@@ -104,101 +91,128 @@ def train(patch_sizeSimu=(2, 32, 32), nStepsPerEpoch=1000, n_epoch=10,
     simuLoader = torch.utils.data.DataLoader(
         datasetSimu, num_workers=num_workers//3, batch_size=batch_size, pin_memory=True, sampler=simuSampler)
 
-    iterNoMB = iter(noMbLoader)
     iterMB = iter(mbLoader)
     iterSimu = iter(simuLoader)
 
-    optimizerGen = torch.optim.Adam(
-        gen.parameters(), lr=lr, betas=betas, eps=1e-8)
-    optimizerdiscrMb = torch.optim.Adam(
-        discrMB.parameters(), lr=lr, betas=betas, eps=1e-8)
-    optimizerdiscrNoMb = torch.optim.Adam(
-        discrNoMB.parameters(), lr=lr, betas=betas, eps=1e-8)
+    optimizerGenSim2Real = torch.optim.Adam(
+        gen_sim2real.parameters(), lr=lr, betas=betas, eps=1e-8)
+    optimizerGenReal2Sim = torch.optim.Adam(
+        gen_real2sim.parameters(), lr=lr, betas=betas, eps=1e-8)
+    optimizerdiscr_f = torch.optim.Adam(
+        discr_f.parameters(), lr=lr, betas=betas, eps=1e-8)
+
 
     for epoch in range(n_epoch):
         print('EPOCH : {}/{}'.format(epoch, n_epoch))
-        lossNoMbTotal = 0
-        lossMbTotal=0
-        lossGenTotal = 0
+        loss_discrTotal = 0
+        lossGenSim2RealTotal = 0
+        lossGenReal2SimTotal = 0
+        lossCycleTotal=0
         for iStep in tqdm.tqdm(range(nStepsPerEpoch)):
             for i in range(n_step_discr):
-                gen.eval()
+                gen_sim2real.eval()
                 with torch.no_grad():
                     batch_simu = next(iterSimu).to(device)
-                    genNoMb, genMb = generate_sample(gen, batch_simu)
+                    genMb = generate_sample(gen_sim2real, batch_simu)
+                with torch.no_grad():
+                    batch_real, _ = next(iterMB)
+                    batch_real = batch_real.to(device)
+                    genSimu = gen_real2sim(batch_real)
 
-                realNoMb, _ = next(iterNoMB)
-                realMb, _ = next(iterMB)
-                realNoMb = realNoMb.to(device)
-                realMb = realMb.to(device)
-                lossMb = discr_update(realMb,
-                                      genMb, discrMB,
-                                      optimizerdiscrMb,
+                batch_real, _ = next(iterMB)
+                batch_real = batch_real.to(device)
+                realMb = torch.cat([batch_real,genSimu],dim=1)
+                genMb = torch.cat([genMb,batch_simu],dim=1)
+
+                loss_discr = discr_update(realMb,
+                                      genMb, discr_f,
+                                      optimizerdiscr_f,
                                       lambda_gp)
-                lossNoMb = discr_update(realNoMb,
-                                        genNoMb,
-                                        discrNoMB,
-                                        optimizerdiscrNoMb,
-                                        lambda_gp)
-                lossNoMbTotal += lossNoMb
-                lossMbTotal += lossMb
+                loss_discrTotal += loss_discr
 
-            gen.train()
-            optimizerGen.zero_grad()
-            genNoMb, genMb = generate_sample(gen, batch_simu)
-            lossGen = discrMB(genMb, None).mean() + \
-                discrNoMB(genNoMb, None).mean()
-            lossGen.backward()
-            optimizerGen.step()
-            lossGenTotal += lossGen.item()
-        lossGenTotal /= nStepsPerEpoch 
-        lossMbTotal /= n_step_discr * nStepsPerEpoch
-        lossNoMbTotal /= n_step_discr * nStepsPerEpoch
+            gen_sim2real.train()
+            gen_real2sim.train()
+            optimizerGenReal2Sim.zero_grad()
+            optimizerGenSim2Real.zero_grad()
 
-        if experiment: 
-            experiment.log_metric("loss generator", lossGenTotal, epoch=epoch)
-            experiment.log_metric("loss discriminator MB", lossMbTotal, epoch=epoch)
-            experiment.log_metric("loss discriminator noMB", lossNoMbTotal, epoch=epoch)
+            batch_simu = next(iterSimu).to(device)
+            batch_real, _ = next(iterMB)
+            batch_real = batch_real.to(device)
+
+            genMb = generate_sample(gen_sim2real, batch_simu)
+            genSimu = gen_real2sim(batch_real)
+
+            batch_simu_hat = gen_real2sim(genMb)
+            lossCycle = torch.mean((batch_simu_hat - batch_simu)**2)
+            realMb = torch.cat([batch_real, genSimu],dim=1)
+            genMb = torch.cat([genMb, batch_simu],dim=1)
+
+            lossGenSim2Real = discr_f(genMb, None).mean() 
+            lossGenReal2sim = - discr_f(realMb, None).mean()
+            loss = lossCycle + lossGenReal2sim + lossGenSim2Real
+            loss.backward()
+            optimizerGenReal2Sim.step()
+            optimizerGenSim2Real.step()
+            lossGenSim2RealTotal += lossGenSim2Real.item()
+            lossGenReal2SimTotal += lossGenReal2sim.item()
+            lossCycleTotal += lossCycle.item()
+
+        lossGenSim2RealTotal /= nStepsPerEpoch 
+        lossGenReal2SimTotal /= nStepsPerEpoch 
+        loss_discrTotal /= n_step_discr * nStepsPerEpoch
+        lossCycleTotal /= nStepsPerEpoch 
+        if experiment is not None: 
+            experiment.log_metric("loss generator Sim2Real", lossGenSim2RealTotal, epoch=epoch)
+            experiment.log_metric("loss generator Real2Sim", lossGenReal2SimTotal, epoch=epoch)
+            experiment.log_metric("loss discriminator", loss_discrTotal, epoch=epoch)
+            experiment.log_metric("loss cycle", lossCycleTotal, epoch=epoch)
 
             with torch.no_grad():
-                build_figure_samples((torch.sqrt(batch_simu[:,0,:,:]**2 + batch_simu[:,1,:,:]**2).cpu()),
+                build_figure_samples(batch_simu.cpu(),
                                      experiment_kwargs={"experiment":experiment, "figure_name":"simulation cond"},dispLabel=False)
-                build_figure_samples(genNoMb.cpu(),
-                                     experiment_kwargs={"experiment":experiment, "figure_name":"generated samples without MB"},dispLabel=False)
+                build_figure_samples(batch_real.cpu(),
+                        experiment_kwargs={"experiment":experiment, "figure_name":"Real data sample"},dispLabel=False)
+                build_figure_samples(genSimu.cpu(),
+                                     experiment_kwargs={"experiment":experiment, "figure_name":"Estimated denoised from real"},dispLabel=False)
                 build_figure_samples(genMb.cpu(),
                                      experiment_kwargs={"experiment":experiment, "figure_name":"generated samples with MB"},dispLabel=False)
         
-        print("loss generator {:1.1e} | loss discriminator MB {:1.1e} | loss discriminator No MB {:1.1e}".format(lossGenTotal,lossMbTotal,lossNoMbTotal))
+        print("loss generator {:1.1e} | loss discriminator {:1.1e}".format(lossGenSim2RealTotal,loss_discrTotal))
         state = {
-            'DiscrNoMB': discrNoMB.state_dict(),
-            'DiscrMB': discrMB.state_dict(),
-            'Generator': gen.state_dict(),
+            'discr_f': discr_f.state_dict(),
+            'gen_sim2real': gen_sim2real.state_dict(),
+            'gen_real2sim': gen_real2sim.state_dict(),
         }
         if not os.path.isdir('checkpointGan'):
             os.mkdir('checkpointGan')
-        torch.save(state, './checkpointGan/' + experiment.name)
+        if experiment is not None: 
+            torch.save(state, './checkpointGan/' + experiment.name)
+        else : 
+            torch.save(state, './checkpointGan/' + 'model_state')
         print('Model Saved!')
 
 
 
 if __name__ == '__main__':
 
-    parameters = {"patch_sizeSimu": (2, 32, 32),
+    parameters = {"patch_sizeSimu": (1, 32, 32),
                   "nStepsPerEpoch": 100,
                   "n_epoch": 100,
                   "num_workers": 6,
-                  "batch_size": 64,
+                  "batch_size": 32,
                   "genLatentDim": 32,
-                  "n_step_discr": 5,
-                  "lambda_gp": 1e1,
-                  "lr": 1e-4,
+                 "n_step_discr": 5,
+                  "lambda_gp": 1e2,
+                  "lr": 5e-5,
                   "betas": [0.5, 0.9],
                   }
     experiment = Experiment(project_name='cgenulm',
                             workspace='bricerauby', auto_log_co2=False)
-    experiment.add_tag('wgan-gp')
+    experiment.add_tag('wgan-gp-style-conditionned-cycle')
     experiment.set_name(os.environ.get('SLURM_JOB_ID') +
                         '_' + experiment.get_name())
     code_list = glob.glob("**/*.py", recursive=True)
+    for code in code_list:
+        experiment.log_code(file_name=code)
     experiment.log_parameters(parameters)
     train(**parameters, experiment=experiment)

@@ -1,4 +1,5 @@
 import torch
+import os
 from byol_pytorch import BYOL
 from torchvision import models
 from dataset.GanDataset import GanDataset
@@ -13,7 +14,7 @@ for dataset in ["MB","NoMB"] :
         image_size = 32,
         hidden_layer = 'avgpool'
     ).to('cuda:0')
-    dataPrefix="data/"
+    dataPrefix= os.path.join(os.environ.get('SLURM_TMPDIR'),'patchesIQ_small_shuffled')
     opt = torch.optim.Adam(learner.parameters(), lr=1e-3)
     train_dataset = GanDataset(dataPrefix, f'train{dataset}.h5',label=1, num_frames=16)
     n  =len(train_dataset)

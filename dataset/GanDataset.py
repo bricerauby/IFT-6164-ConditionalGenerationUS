@@ -13,7 +13,8 @@ class GanDataset(PatchDataset):
 
 
 class SimuDataset(torch.utils.data.Dataset):
-    def __init__(self, path, num_frames):
+    def __init__(self, path, num_frames,real=False):
+        self.real=real
         with h5py.File(path, 'r') as h5f:
             self.groups = list(h5f.keys())
             # Get the total number of simu
@@ -39,8 +40,14 @@ class SimuDataset(torch.utils.data.Dataset):
             frame = patches_dataset[frame_idx, :, :, :]
             frame = frame.T
             abs_frame = np.sqrt(frame[0] ** 2 + frame[1] ** 2)
-            frame = (frame - abs_frame.min()) / (abs_frame.max() - abs_frame.min())
-        # Convert the frame to a PyTorch tensor
-        frame_tensor = torch.tensor(frame, dtype=torch.float32)
+            if self.real:
+                frame = (abs_frame - abs_frame.min()) / (abs_frame.max() - abs_frame.min())
+                # Convert the frame to a PyTorch tensor
+                frame_tensor = torch.tensor(frame, dtype=torch.float32)
+                frame_tensor=frame_tensor.unsqueeze(0)
+            else:
+                frame = (frame - abs_frame.min()) / (abs_frame.max() - abs_frame.min())
+                # Convert the frame to a PyTorch tensor
+                frame_tensor = torch.tensor(frame, dtype=torch.float32)
         # Return the frame tensor
         return frame_tensor

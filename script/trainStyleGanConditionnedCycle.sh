@@ -4,8 +4,8 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=6
-#SBATCH --job-name=train_genUlm
-#SBATCH --output=output_dir/GanUlm/%j-%x.out
+#SBATCH --job-name=CycleCond
+#SBATCH --output=output_dir/GanUlm/CycleCond%j-%x.out
 
 cd ~/IFT-6164-ConditionalGenerationUS
 
@@ -22,4 +22,4 @@ cp -rv ~/scratch/data/data_CGenULM/patchesIQ_small_shuffled $SLURM_TMPDIR/
 cp -rv ~/scratch/data/data_CGenULM/cGenUlmSimu $SLURM_TMPDIR/
 cp -v ~/scratch/GanCGenPatches.h5 $SLURM_TMPDIR/
 cp -v ~/scratch/data/data_CGenULM/BaselineCGenPatches.h5 $SLURM_TMPDIR/
-python trainStyleGanUlm.py
+python trainStyleGanUlmConditionnedCycle.py

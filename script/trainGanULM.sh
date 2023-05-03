@@ -22,4 +22,4 @@ cp -rv ~/scratch/data/data_CGenULM/patchesIQ_small_shuffled $SLURM_TMPDIR/
 cp -rv ~/scratch/data/data_CGenULM/cGenUlmSimu $SLURM_TMPDIR/
 cp -v ~/scratch/GanCGenPatches.h5 $SLURM_TMPDIR/
 cp -v ~/scratch/data/data_CGenULM/BaselineCGenPatches.h5 $SLURM_TMPDIR/
-python trainStyleGanUlm.py
+python trainGanUlm.py 

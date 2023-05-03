@@ -5,22 +5,18 @@ import numpy as np
 import torch
 import tqdm
 import glob
-sys.path.append("stylegan3")
-from stylegan3.training.networks_stylegan2 import Discriminator
-from stylegan3.training.networks_stylegan2 import Generator
+
+from models.gan import Generator,  Discriminator
 from dataset.GanDataset import GanDataset, SimuDataset
 from display.functionnalDisplay import build_figure_samples
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 def generate_sample(generator, batch_simu):
     # reshape simulated sample to conditionned the generator
-    batch_size = batch_simu.shape[0]
-    genLatentDim = generator.z_dim
-    cond = batch_simu.reshape(batch_size, -1).to(device)
-    # sample latent space
-    z = torch.randn(batch_size, genLatentDim).to(device)
-    genNoMb = generator(z, cond)
+    cond = batch_simu.to(device)
+    genNoMb = generator.sample(cond.shape[:1] + (1,) + cond.shape[2:],cond)
 
     # compute the corresponding sample with the MB added (as a complex signal)
     genMb = genNoMb+batch_simu
@@ -78,15 +74,12 @@ def train(patch_sizeSimu=(2, 32, 32), nStepsPerEpoch=1000, n_epoch=10,
         'SLURM_TMPDIR'), 'cGenUlmSimu', 'seg1_frames_1000bb_20s_seed_1_0.h5')
     cdim = np.prod(patch_sizeSimu)
 
-    gen = Generator(z_dim=genLatentDim, c_dim=cdim, w_dim=128,
-                    img_resolution=32, img_channels=2).to(device)
-    discrMB = Discriminator(c_dim=0, img_resolution=32,
-                            img_channels=1).to(device)
-    discrNoMB = Discriminator(
-        c_dim=0, img_resolution=32, img_channels=1).to(device)
+    gen = Generator(dim=2,unet_kwargs={"nblocs":2}).to(device)
+    discrMB = Discriminator(dim=2, in_chans=1).to(device)
+    discrNoMB = Discriminator(dim=2, in_chans=1).to(device)
 
-    datasetNoMb = GanDataset(dataRealPrefix, 'trainNoMB.h5', 1, num_frames=16)
-    datasetMb = GanDataset(dataRealPrefix, 'trainMB.h5', 0, num_frames=16)
+    datasetNoMb = GanDataset(dataRealPrefix, 'trainMB.h5', 1, num_frames=16)
+    datasetMb = GanDataset(dataRealPrefix, 'trainNoMB.h5', 0, num_frames=16)
     datasetSimu = SimuDataset(dataSimuPath, num_frames=16)
 
     noMbsampler = torch.utils.data.RandomSampler(
@@ -185,18 +178,20 @@ if __name__ == '__main__':
 
     parameters = {"patch_sizeSimu": (2, 32, 32),
                   "nStepsPerEpoch": 100,
-                  "n_epoch": 100,
+                  "n_epoch": 200,
                   "num_workers": 6,
                   "batch_size": 64,
                   "genLatentDim": 32,
-                  "n_step_discr": 5,
-                  "lambda_gp": 1e2,
-                  "lr": 5e-5,
+                  "n_step_discr": 10,
+                  "lambda_gp": 1e1,
+                  "lr": 1e-4,
                   "betas": [0.5, 0.9],
                   }
     experiment = Experiment(project_name='cgenulm',
                             workspace='bricerauby', auto_log_co2=False)
     experiment.add_tag('wgan-gp')
+    experiment.add_tag('debug-gp')
+    
     experiment.set_name(os.environ.get('SLURM_JOB_ID') +
                         '_' + experiment.get_name())
     code_list = glob.glob("**/*.py", recursive=True)
